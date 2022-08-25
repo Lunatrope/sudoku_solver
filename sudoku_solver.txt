@@ -1,0 +1,106 @@
+CLASS Sudoku
+    board (9 x 9 array)
+        array of integers in [0,9], blank cells represented by 0
+    filled (nested dictionary)
+        filled[value] = {"count": integer in [0,9], 
+                         "rows": set of integers in [0,8],
+                         "cols": set of integers in [0,8],
+                         "nonets": set of integers in [0,8]
+                        } for each integer value in [1,9]
+    blanks (nested dictionary)
+        blanks["rows"] = {index: set of integers in [0,8]} where index is an integer in [0,8]
+        blanks["cols"] = {index: set of integers in [0,8]} where index is an integer in [0,8]
+        blanks["nonets"] = {index: set of integers in [0,8]} where index is an integer in [0,8]
+        
+
+    PROCEDURE __init__(self, string)
+        SET board equal to list of 9 empty lists
+        SET filled equal to dictionary with filled[value] = empty dictionary for integer value in [0,9]
+        FOR each integer value in [1,9]
+            SET filled[value]["rows"] equal to empty set
+            SET filled[value]["cols"] equal to empty set
+            SET filled[value]["nonets"] equal to empty set
+            SET filled[value]["count"] equal to 0
+        END FOR 
+        SET blanks equal to dictionary {"rows": empty dictionary, "cols": empty dictionary, "nonets": empty dictionary}
+        FOR each integer index in [0,8]
+            SET blanks["rows"][index] equal to empty set
+            SET blanks["cols"][index] equal to empty set
+            SET blanks["nonets"][index] equal to empty set
+        END FOR 
+        FOR each integer y in [0,8]
+            SET x equal to 0
+            FOR each char in string at an index in [y*9,(y+1)*9-1]
+                CALL int() with char RETURNING value
+                APPEND value to board[y]
+                IF value is 0
+                    ADD x to blanks["rows"][y] 
+                    ADD y to blanks["cols"][x] 
+                    ADD x%3+(y%3)*3 to blanks["nonets"][x//3+(y//3)*3]
+                ELSE 
+                    ADD y to filled[value]["rows"]
+                    ADD x to filled[value]["cols"]
+                    ADD x//3+(y//3)*3 to filled[value]["nonets"]
+                    INCREMENT filled[value]["count"] by 1
+                END IF
+                INCREMENT x by 1
+            END FOR
+        END FOR
+        SET self.board equal to board
+        CALL sorted with filled.items(), key = lambda item: item[1]["count"], reverse = True RETURNING list of tuples
+        SET queue equal to empty list
+        FOR item in list of tuples
+            APPEND item[0] to queue
+        END FOR
+        SET self.filled equal to filled
+
+PROCEDURE solve(puzzle (Sudoku object))
+    WHILE length of queue is strictly greater than 0
+        CALL queue.pop with 0 RETURNING value
+            IF filled[value]["count"] is 9
+                DELETE filled[value]
+                CONTINUE to next value in queue
+            END IF
+            CALL set with blanks["rows"].keys RETURNING set row_blanks
+            CALL row_blanks.difference with filled[value]["rows"] RETURNING set row_candidates
+            CALL set with blanks["cols"].keys RETURNING set col_blanks
+            CALL col_blanks.difference with filled[value]["cols"] RETURNING set col_candidates
+            CALL set with blanks["nonets"].keys RETURNING set nonet_blanks
+            CALL nonet_blanks.difference with filled[value]["nonets"] RETURNING set nonet_candidates
+            SET candidates equal to empty set
+            SET x_already_seen equal to empty set
+            FOR each y in row_candidates:
+                SET temp equal to blanks["rows"][y]
+                CALL temp.intersection with col_candidates RETURNING row_cols 
+                SET temp equal to set {x//3+(y//3)*3 for x in row_cols}
+                CALL temp.intersection with nonet_candidates RETURNING row_nonets
+                CALL filter with lambda x: (x//3+(y//3)*3 in row_nonets), row_cols RETURNING temp_candidates
+                # What remains is the set of all columns x in the row y that correspond to a
+                # candidate blank aftering filtering out already-filled columns and nonets
+                SET temp_candidates equal to the set {(x,y) for x in temp_candidates}
+                CALL filter with lambda (x,y): x in x_already_seen, temp_candidates RETURNING remove
+                CALL temp_candidates.difference with remove RETURNING temp_candidates
+                CALL filter with lambda (x,y): x in remove, candidates
+                CALL candidates.union with temp_candidates RETURNING candidates
+            END FOR
+            FOR (x,y) in candidates:
+                SET puzzle.board[y][x] = value 
+                DELETE puzzle.blanks["rows"][y] 
+                DELETE y from puzzle.blanks["cols"][x] 
+                DELETE x%3+(y%3)*3 to blanks["nonets"][x//3+(y//3)*3]    
+                INCREMENT filled[value]["count"] by 1
+                IF filled[value]["count"] is 9
+                    DELETE filled[value]
+                    BREAK
+                ELSE
+                    ADD y to filled[value]["rows"]
+                    ADD x to filled[value]["cols"]
+                    ADD x//3+(y//3)*3 to filled[value]["nonets"]            
+                END IF 
+                APPEND value to queue
+            END FOR             
+        END FOR
+    
+    
+
+
